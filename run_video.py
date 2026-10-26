@@ -111,11 +111,11 @@ class LatestPreviewSender:
         self.worker = Thread(target=self._run, daemon=True)
         self.worker.start()
 
-    def submit(self, frame, landmarks, row, processing_fps):
+    def submit(self, frame, landmarks, row, processing_fps, event_counts):
         with self.condition:
             if self.pending is not None:
                 self.dropped += 1
-            self.pending = (frame.copy(), landmarks, row.copy(), processing_fps)
+            self.pending = (frame.copy(), landmarks, row.copy(), processing_fps, event_counts.copy())
             self.condition.notify()
 
     def _run(self):
@@ -124,12 +124,12 @@ class LatestPreviewSender:
                 self.condition.wait_for(lambda: self.pending is not None or self.closed)
                 if self.closed:
                     return
-                frame, landmarks, row, processing_fps = self.pending
+                frame, landmarks, row, processing_fps, event_counts = self.pending
                 self.pending = None
             started = perf_counter()
             try:
                 draw_overlay(frame, landmarks, row, self.algorithm, processing_fps)
-                self.publisher.send_preview(frame, row, processing_fps)
+                self.publisher.send_preview(frame, row, processing_fps, event_counts)
             except Exception as exc:
                 # Keep the preview worker alive if drawing or sending a frame fails.
                 with self.condition:
@@ -344,7 +344,7 @@ def main():
                 processing_fps = 1000 * count / totals['process_ms']
                 if publish_preview and preview_sender is not None:
                     last_preview = perf_counter()
-                    preview_sender.submit(frame, landmarks, row, processing_fps)
+                    preview_sender.submit(frame, landmarks, row, processing_fps, tracker.counts)
                 if not args.headless or args.save_video or (publish_preview and preview_sender is None):
                     draw_overlay(frame, landmarks, row, args.algorithm, processing_fps)
                 if publish_preview and preview_sender is None:

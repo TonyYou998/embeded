@@ -120,7 +120,7 @@ class ResultPublisher:
         self.url = url
         self.opener = build_opener(ProxyHandler({}))
 
-    def send_preview(self, frame, row=None, processing_fps=None):
+    def send_preview(self, frame, row=None, processing_fps=None, event_counts=None):
         import cv2
 
         ok, encoded = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
@@ -133,6 +133,13 @@ class ResultPublisher:
                 'X-Mouth-State': str(row['mouth_state']),
                 'X-Closed-Duration': f"{float(row['closed_duration_s'] or 0):.3f}",
                 'X-Yawn-Duration': f"{float(row['yawn_duration_s'] or 0):.3f}",
+                'X-Closed-Alert': '1' if row['closed_alert'] else '0',
+                'X-Yawn-Alert': '1' if row['yawn_alert'] else '0',
+            })
+        if event_counts is not None:
+            headers.update({
+                'X-Closed-Event-Count': str(event_counts['eyes']),
+                'X-Yawn-Event-Count': str(event_counts['mouth']),
             })
         if processing_fps is not None and math.isfinite(processing_fps):
             headers['X-Processing-Fps'] = f'{processing_fps:.2f}'
